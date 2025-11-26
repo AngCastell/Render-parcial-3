@@ -8,13 +8,20 @@ const port = 3000;
 app.use(cors());
 app.use(express.json());
 
-const pool = new Pool({
-    host: process.env.DB_HOST || 'postgres',
-    port: 5432,
-    database: 'crud_db',
-    user: 'postgres',
-    password: 'postgres',
-})
+// Configuración de la base de datos
+// Render usa DATABASE_URL, Docker usa DB_HOST
+const pool = process.env.DATABASE_URL 
+    ? new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.DATABASE_URL.includes('render.com') ? { rejectUnauthorized: false } : false
+    })
+    : new Pool({
+        host: process.env.DB_HOST || 'postgres',
+        port: 5432,
+        database: 'crud_db',
+        user: 'postgres',
+        password: 'postgres',
+    })
 
 app.get('/api/users', async (req, res) => {
     try {
