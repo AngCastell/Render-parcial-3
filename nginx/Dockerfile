@@ -1,6 +1,6 @@
+# Usar imagen oficial de Nginx
 FROM nginx:alpine
+# Copiar configuración personalizada
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
+# Exponer el puerto 80
 EXPOSE 80
-CMD ["/start.sh"]
