@@ -1,44 +1,20 @@
-// Importar librerías necesarias
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 
-// Crear aplicación Express
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middlewares
 app.use(cors());
 app.use(express.json());
 
-// Conexión a PostgreSQL (Render usa DATABASE_URL)
-if (!process.env.DATABASE_URL) {
-  console.error('ERROR: DATABASE_URL no está definida en las variables de entorno');
-  process.exit(1);
-}
-
+// Render PostgreSQL connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('render.com') ? { rejectUnauthorized: false } : false
+  ssl: { rejectUnauthorized: false }
 });
 
-// Manejar errores de conexión
-pool.on('error', (err) => {
-  console.error('Error inesperado en el pool de PostgreSQL:', err);
-});
-
-// Verificar conexión al iniciar
-pool.connect()
-  .then((client) => {
-    console.log('Conexión a PostgreSQL establecida correctamente');
-    client.release();
-  })
-  .catch((err) => {
-    console.error('Error al conectar a PostgreSQL:', err.message);
-    console.error('DATABASE_URL:', process.env.DATABASE_URL ? 'Definida' : 'No definida');
-  });
-
-// GET /api/users - Obtener todos los usuarios
+// Rutas CRUD
 app.get('/api/users', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM users');
@@ -48,18 +24,16 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
-// GET /api/users/:id - Obtener un usuario
 app.get('/api/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    const result = await pool.query('SELECT * FROM users WHERE id=$1', [id]);
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/users - Crear usuario
 app.post('/api/users', async (req, res) => {
   try {
     const { nombre, correo } = req.body;
@@ -73,7 +47,6 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-// PUT /api/users/:id - Actualizar usuario
 app.put('/api/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -88,32 +61,26 @@ app.put('/api/users/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/users/:id - Eliminar usuario
 app.delete('/api/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM users WHERE id = $1', [id]);
-    res.json({ message: 'Usuario eliminado' });
+    await pool.query('DELETE FROM users WHERE id=$1', [id]);
+    res.json({ message: "Usuario eliminado" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Crear tabla si no existe al iniciar
+// Crear tabla si no existe
 pool.query(`
   CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     nombre TEXT,
     correo TEXT
   )
-`)
-  .then(() => console.log('Tabla users lista'))
-  .catch((err) => {
-    console.error('Error al crear tabla:', err.message);
-    console.error('Detalles:', err);
-  });
+`).then(() => console.log("Tabla lista"));
 
-// Iniciar servidor
+// Iniciar server
 app.listen(PORT, () => {
-  console.log(`Servidor corriendo en puerto ${PORT}`);
+  console.log(`API escuchando en puerto ${PORT}`);
 });
