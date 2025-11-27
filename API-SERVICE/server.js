@@ -1,111 +1,93 @@
+// Importar librerías necesarias
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 
+// Crear aplicación Express
 const app = express();
-const port = 3000;
+const PORT = process.env.PORT || 3000;
 
+// Middlewares
 app.use(cors());
 app.use(express.json());
 
-// Configuración de la base de datos
-// Render usa DATABASE_URL, Docker usa DB_HOST
-const pool = process.env.DATABASE_URL 
-    ? new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: process.env.DATABASE_URL.includes('render.com') ? { rejectUnauthorized: false } : false
-    })
-    : new Pool({
-        host: process.env.DB_HOST || 'postgres',
-        port: 5432,
-        database: 'crud_db',
-        user: 'postgres',
-        password: 'postgres',
-    })
+// Conexión a PostgreSQL (Render usa DATABASE_URL)
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 
+// GET /api/users - Obtener todos los usuarios
 app.get('/api/users', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT * FROM users');
-        res.json(result.rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+  try {
+    const result = await pool.query('SELECT * FROM users');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
+// GET /api/users/:id - Obtener un usuario
 app.get('/api/users/:id', async (req, res) => {
-    try {
-        const{id} = req.params;
-        const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
-        res.json(result.rows[0]);
-    }catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
+// POST /api/users - Crear usuario
 app.post('/api/users', async (req, res) => {
-    try {
-        const{nombre, correo} = req.body;
-        const result = await pool.query('INSERT INTO users (nombre, correo) VALUES ($1, $2) RETURNING *', [nombre, correo]);
-        res.status(201).json(result.rows[0]);
-    } catch (err) {
-        res.status(500).json({ error: err.message });}
+  try {
+    const { nombre, correo } = req.body;
+    const result = await pool.query(
+      'INSERT INTO users (nombre, correo) VALUES ($1, $2) RETURNING *',
+      [nombre, correo]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
+// PUT /api/users/:id - Actualizar usuario
 app.put('/api/users/:id', async (req, res) => {
-    try {
-        const{id} = req.params;
-        const{nombre, correo} = req.body;
-        const result = await pool.query('UPDATE users SET nombre = $1, correo = $2 WHERE id = $3 RETURNING *', [nombre, correo, id]);
-        res.json(result.rows[0]);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+  try {
+    const { id } = req.params;
+    const { nombre, correo } = req.body;
+    const result = await pool.query(
+      'UPDATE users SET nombre=$1, correo=$2 WHERE id=$3 RETURNING *',
+      [nombre, correo, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
+// DELETE /api/users/:id - Eliminar usuario
 app.delete('/api/users/:id', async (req, res) => {
-    try {
-        const{id} = req.params;
-        const result = await pool.query('DELETE FROM users WHERE id = $1', [id]);
-        res.json({ message: 'Usuario eliminado'});
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    res.json({ message: 'Usuario eliminado' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// Función para conectar a la base de datos con reintentos
-async function connectDB() {
-    let retries = 5;
-    while (retries > 0) {
-        try {
-            await pool.query('SELECT NOW()');
-            console.log('Conexión a la base de datos exitosa');
-            
-            // Crear tabla si no existe
-            await pool.query(`
-                CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY, nombre TEXT, correo TEXT
-                )`);
-            console.log('Tabla users lista');
-            return;
-        } catch (err) {
-            retries--;
-            console.log(`Error conectando a la base de datos. Reintentos restantes: ${retries}`);
-            if (retries === 0) {
-                console.error('No se pudo conectar a la base de datos después de varios intentos');
-                throw err;
-            }
-            await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-    }
-}
+// Crear tabla si no existe al iniciar
+pool.query(`
+  CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    nombre TEXT,
+    correo TEXT
+  )
+`).then(() => console.log('Tabla users lista'));
 
-// Conectar a la base de datos antes de iniciar el servidor
-connectDB().then(() => {
-    app.listen(port, () => {
-        console.log(`Servidor corriendo en el puerto ${port}`);
-    });
-}).catch(err => {
-    console.error('Error fatal:', err);
-    process.exit(1);
+// Iniciar servidor
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en puerto ${PORT}`);
 });
-    
