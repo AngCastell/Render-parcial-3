@@ -12,10 +12,31 @@ app.use(cors());
 app.use(express.json());
 
 // Conexión a PostgreSQL (Render usa DATABASE_URL)
+if (!process.env.DATABASE_URL) {
+  console.error('ERROR: DATABASE_URL no está definida en las variables de entorno');
+  process.exit(1);
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: process.env.DATABASE_URL?.includes('render.com') ? { rejectUnauthorized: false } : false
 });
+
+// Manejar errores de conexión
+pool.on('error', (err) => {
+  console.error('Error inesperado en el pool de PostgreSQL:', err);
+});
+
+// Verificar conexión al iniciar
+pool.connect()
+  .then((client) => {
+    console.log('Conexión a PostgreSQL establecida correctamente');
+    client.release();
+  })
+  .catch((err) => {
+    console.error('Error al conectar a PostgreSQL:', err.message);
+    console.error('DATABASE_URL:', process.env.DATABASE_URL ? 'Definida' : 'No definida');
+  });
 
 // GET /api/users - Obtener todos los usuarios
 app.get('/api/users', async (req, res) => {
@@ -85,7 +106,12 @@ pool.query(`
     nombre TEXT,
     correo TEXT
   )
-`).then(() => console.log('Tabla users lista'));
+`)
+  .then(() => console.log('Tabla users lista'))
+  .catch((err) => {
+    console.error('Error al crear tabla:', err.message);
+    console.error('Detalles:', err);
+  });
 
 // Iniciar servidor
 app.listen(PORT, () => {
